@@ -27,17 +27,29 @@ scrape_configs:
 
   - job_name: nginx-logs
     static_configs:
+    - targets:
+        - localhost
+      labels:
+        job: nginx
+        type: access
+        __path__: /var/log/nginx/access.log
 
-      - targets:
-          - localhost
-        labels:
-          job: nginx
-          type: access
-          __path__: /var/log/nginx/access.log
+    pipeline_stages:
 
-      - targets:
-          - localhost
-        labels:
-          job: nginx
-          type: error
-          __path__: /var/log/nginx/error.log
+    - json:
+        expressions:
+          time: time
+          method: method
+          uri: uri
+          status: status
+          request_time: request_time
+          upstream_response_time: upstream_response_time
+          user_agent: http_user_agent
+
+    - labels:
+        method:
+        status:
+        uri:
+
+    - output:
+        source: message
