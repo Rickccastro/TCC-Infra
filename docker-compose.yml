@@ -122,6 +122,16 @@ services:
       - loki
     networks:
       - observability
+  python-api:
+    build: ./python-api
+    container_name: python-api
+    ports:
+      - "5000:5000"
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - observability
 
 networks:
   observability:
