@@ -4,5 +4,4 @@
 /assets
 /grafana_data
 .vscode
-nginx/logs/access.log
-nginx/logs/error.log
+/nginx/logs/*.log
