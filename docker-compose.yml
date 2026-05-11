@@ -116,20 +116,59 @@ services:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - ./promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./nginx/logs:/var/log/nginx   
+      - ./nginx/logs:/var/log/nginx
     command: -config.file=/etc/promtail/promtail-config.yaml
     depends_on:
       - loki
     networks:
       - observability
-  python-api:
-    build: ./python-api
-    container_name: python-api
+
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
     ports:
-      - "5000:5000"
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - observability
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  ollama-model-init:
+    image: ollama/ollama
+    container_name: ollama-model-init
+    entrypoint: ["ollama", "pull", "${OLLAMA_MODEL:-llama3.2}"]
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
     depends_on:
-      - prometheus
-      - loki
+      ollama:
+        condition: service_healthy
+    networks:
+      - observability
+    restart: "no"
+
+  python-observability:
+    build: ./pythonObservability
+    container_name: python-observability
+    ports:
+      - "5001:5001"
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
+    volumes:
+      - python_observability_data:/data
+    depends_on:
+      ollama-model-init:
+        condition: service_completed_successfully
+      loki:
+        condition: service_started
+      prometheus:
+        condition: service_started
     networks:
       - observability
 
@@ -140,3 +179,5 @@ volumes:
   mysql_data:
   moodle_code:
   moodle_data:
+  python_observability_data:
+  ollama_data:

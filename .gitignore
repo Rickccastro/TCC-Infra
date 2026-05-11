@@ -5,3 +5,4 @@
 /grafana_data
 .vscode
 /nginx/logs/*.log
+*.md
