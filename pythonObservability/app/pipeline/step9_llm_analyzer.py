@@ -1,5 +1,5 @@
 """
-Etapa 9 — Análise semântica com LLM (Ollama — modelo local no Docker stack).
+Etapa 9 — Análise semântica com LLM (Ollama — modelo local leve no Docker stack).
 
 Recebe um incidente candidato e retorna uma interpretação operacional
 em linguagem natural com hipótese de causa e verificações recomendadas.
@@ -19,7 +19,7 @@ from app.collectors.loki_collector import LokiCollector
 
 _OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://ollama:11434")
 _OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2")
-_OLLAMA_TIMEOUT = 120  # segundos — modelos locais podem ser lentos na primeira inferência
+_OLLAMA_TIMEOUT = 300  # segundos — modelos locais podem ser lentos na primeira inferência
 
 _SYSTEM_PROMPT = """\
 Você é um engenheiro de observabilidade especialista em sistemas Moodle rodando em Docker.
@@ -77,7 +77,7 @@ def analyze(incident: dict) -> dict:
     log_lines = LokiCollector.get_raw_log_lines(
         start_s=int(incident.get("window_start", 0)),
         end_s=int(incident.get("window_end", 0)),
-        limit=10,
+        limit=3,
     )
 
     full_prompt = _SYSTEM_PROMPT + "\n\n" + _build_prompt(incident, log_lines)

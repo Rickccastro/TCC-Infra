@@ -11,7 +11,7 @@ app = FastAPI(
     description=(
         "Pipeline AIOps com 10 etapas: coleta → normalização → enriquecimento → "
         "agrupamento → features → ML (IsolationForest) → correlação → "
-        "incidente candidato → LLM (Claude) → interpretação operacional."
+        "incidente candidato → LLM (Ollama) → interpretação operacional."
     ),
     version="1.0.0",
 )
@@ -25,7 +25,7 @@ def run_pipeline(
     """
     Executa o pipeline AIOps completo.
     Coleta métricas do Loki e Prometheus, detecta anomalias com IsolationForest
-    e interpreta o incidente com Claude (LLM).
+    e interpreta o incidente com Ollama (LLM).
     """
     return AIOpsService.run_pipeline(
         history_minutes=history_minutes,

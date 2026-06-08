@@ -31,6 +31,9 @@ from app.pipeline.step5_feature_engineer import FEATURE_NAMES
 _THRESHOLDS = {
     "cpu_avg":            {"warning": 70.0,   "critical": 90.0},
     "mem_avg":            {"warning": 75.0,   "critical": 90.0},
+    "mysql_down":              {"warning": 0.5,   "critical": 0.9},
+    "mysql_qps":               {"warning": 500.0, "critical": 1000.0},
+    "mysql_threads_running":   {"warning": 10.0,  "critical": 25.0},
     "p50_latency":        {"warning": 0.5,    "critical": 1.0},
     "p95_latency":        {"warning": 1.0,    "critical": 2.0},
     "p99_latency":        {"warning": 2.0,    "critical": 5.0},
@@ -49,6 +52,9 @@ _THRESHOLDS = {
 _FEATURE_CATEGORY = {
     "cpu_avg": "infrastructure",
     "mem_avg": "infrastructure",
+    "mysql_down":              "database",
+    "mysql_qps":               "database",
+    "mysql_threads_running":   "database",
     "p50_latency": "latency",
     "p95_latency": "latency",
     "p99_latency": "latency",
@@ -68,6 +74,11 @@ _FEATURE_CATEGORY = {
 # Cada regra define uma condição sobre o dict de features e, quando satisfeita,
 # adiciona o serviço inferido com o motivo à lista de related_services.
 _DEPENDENCY_RULES = [
+    { 
+        "service": "moodledb", 
+        "condition": lambda f: 1.0 if f.get("mysql_down", 0.0) >= 0.9 else 0.0, 
+        "reason": "Conexão com o banco de dados perdida (mysql_up=0)", 
+    },
     {
         "service": "moodledb",
         "condition": lambda f: (

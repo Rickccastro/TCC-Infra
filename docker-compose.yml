@@ -21,6 +21,10 @@ services:
     container_name: moodleapp
     depends_on:
       - moodledb
+
+    cpus: 3
+    mem_limit: 4g
+
     environment: 
       MOODLE_DOCKER_WEB_PORT: 8080
       MOODLE_DOCKER_DBNAME: moodle
@@ -61,6 +65,18 @@ services:
       - "3000:3000"
     volumes:
       - ./grafana_data:/var/lib/grafana
+    networks:
+      - observability
+
+  mysql-exporter:
+    image: prom/mysqld-exporter
+    command: 
+     - --config.my-cnf=/cfg/.my.cnf
+     - --mysqld.address=moodledb:3306
+    volumes:
+      - "./.my.cnf:/cfg/.my.cnf"
+    ports:
+      - 9104:9104
     networks:
       - observability
 
@@ -116,7 +132,7 @@ services:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - ./promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./nginx/logs:/var/log/nginx
+      - ./nginx/logs:/var/log/nginx   
     command: -config.file=/etc/promtail/promtail-config.yaml
     depends_on:
       - loki
@@ -126,6 +142,7 @@ services:
   ollama:
     image: ollama/ollama
     container_name: ollama
+
     ports:
       - "11434:11434"
     volumes:

@@ -7,13 +7,18 @@ um possível incidente operacional. Essa estrutura é a entrada do LLM.
 Saída:
 {
   "incident_candidate_id": str,
+  "title": str,
   "summary": str,
   "main_service": str,
   "related_services": [str],
+  "inferred_related_services": [{"service": str, "reason": str, "confidence": float}],
   "time_window": str,
   "anomaly_score": float,
+  "forced_by_rule": str | None,
+  "causal_note": str | None,
   "evidence": [str],
   "categories_affected": [str],
+  "correlated_signals": [dict],
 }
 """
 
@@ -22,20 +27,28 @@ from typing import List
 
 _SEVERITY_LABEL = {
     "critical": "crítico",
-    "warning": "elevado",
+    "warning":  "elevado",
 }
 
 _METRIC_LABEL = {
-    "cpu_avg": "CPU média",
-    "mem_avg": "memória média",
-    "p50_latency": "latência P50",
-    "p95_latency": "latência P95",
-    "p99_latency": "latência P99",
-    "avg_response_time": "tempo médio de resposta",
-    "rps": "requisições por segundo",
-    "error_count": "contagem de erros HTTP 4xx/5xx",
-    "login_attempts": "tentativas de login",
-    "client_aborts": "conexões abortadas (499)",
+    "cpu_avg":                 "CPU média",
+    "mem_avg":                 "memória média",
+    "p50_latency":             "latência P50",
+    "p95_latency":             "latência P95",
+    "p99_latency":             "latência P99",
+    "avg_response_time":       "tempo médio de resposta",
+    "max_endpoint_p95":        "pior P95 por endpoint",
+    "rps":                     "requisições por segundo",
+    "error_count":             "contagem de erros HTTP 4xx/5xx",
+    "http_4xx":                "erros HTTP 4xx",
+    "http_5xx":                "erros HTTP 5xx",
+    "client_aborts":           "conexões abortadas (499)",
+    "login_attempts":          "tentativas de login",
+    "mobile_count":            "acessos mobile",
+    "desktop_count":           "acessos desktop",
+    "mysql_down":              "banco de dados inacessível",
+    "mysql_qps":               "queries por segundo (MySQL)",
+    "mysql_threads_running":   "threads em execução (MySQL)",
 }
 
 
@@ -44,12 +57,24 @@ def _incident_id(group_id: str) -> str:
     return f"incident_{h}"
 
 
-def _build_evidence(signals: List[dict]) -> List[str]:
+def _build_evidence(signals: List[dict], inferred: List[dict]) -> List[str]:
+    """
+    Constrói lista de evidências legíveis combinando sinais de threshold
+    com inferências de serviços relacionados (incluindo confidence score).
+    """
     evidence = []
+
     for s in signals:
         label = _METRIC_LABEL.get(s["metric"], s["metric"])
-        sev = _SEVERITY_LABEL.get(s["severity"], s["severity"])
+        sev   = _SEVERITY_LABEL.get(s["severity"], s["severity"])
         evidence.append(f"{label}: {s['value']} ({sev})")
+
+    for inf in inferred:
+        evidence.append(
+            f"Serviço relacionado inferido: {inf['service']} "
+            f"— {inf['reason']}"
+        )
+
     return evidence
 
 
@@ -57,36 +82,59 @@ def build(correlations: List[dict]) -> List[dict]:
     incidents = []
 
     for corr in correlations:
-        evidence = _build_evidence(corr["correlated_signals"])
-        categories = corr["categories_affected"]
-
-        inferred = corr.get("inferred_related_services", [])
+        inferred         = corr.get("inferred_related_services", [])
         related_services = [corr["service"]] + [r["service"] for r in inferred]
+        evidence         = _build_evidence(corr["correlated_signals"], inferred)
+        categories       = corr["categories_affected"]
+        forced_by_rule   = corr.get("forced_by_rule")
+        causal_note      = corr.get("causal_note")
 
-        category_summary = ", ".join(categories) if categories else "comportamento geral"
-        related_summary = (
-            f" Serviços relacionados inferidos: {', '.join(r['service'] for r in inferred)}."
-            if inferred else ""
+        # ── Banco completamente inacessível: título e resumo específicos ──────
+        db_down = any(
+            s.get("metric") == "mysql_down" and s.get("severity") == "critical"
+            for s in corr["correlated_signals"]
         )
-        summary = (
-            f"Anomalia detectada no serviço {corr['service']} "
-            f"na janela {corr['time_window']}. "
-            f"Categorias afetadas: {category_summary}.{related_summary}"
-        )
+
+        if db_down:
+            title   = "Banco de Dados Inacessível — Falha Crítica"
+            summary = (
+                f"O MySQL (moodledb) está completamente inacessível na janela "
+                f"{corr['time_window']}. Todos os erros e lentidão observados "
+                f"no Nginx são consequências diretas desta falha."
+            )
+        else:
+            title = f"Anomalia detectada — {corr['service']}"
+            category_summary = ", ".join(categories) if categories else "comportamento geral"
+            related_summary  = (
+                f" Serviços relacionados inferidos: "
+                f"{', '.join(r['service'] for r in inferred)}."
+                if inferred else ""
+            )
+            summary = (
+                f"Anomalia detectada no serviço {corr['service']} "
+                f"na janela {corr['time_window']}. "
+                f"Categorias afetadas: {category_summary}.{related_summary}"
+            )
 
         incidents.append({
-            "incident_candidate_id": _incident_id(corr["anomalous_group_id"]),
-            "summary": summary,
-            "main_service": corr["service"],
-            "related_services": related_services,
+            "incident_candidate_id":     _incident_id(corr["anomalous_group_id"]),
+            "title":                     title,
+            "summary":                   summary,
+            "main_service":              corr["service"],
+            "related_services":          related_services,
             "inferred_related_services": inferred,
-            "time_window": corr["time_window"],
-            "window_start": corr["window_start"],
-            "window_end": corr["window_end"],
-            "anomaly_score": corr["anomaly_score"],
-            "evidence": evidence,
-            "categories_affected": categories,
-            "correlated_signals": corr["correlated_signals"],
+            "time_window":               corr["time_window"],
+            "window_start":              corr["window_start"],
+            "window_end":                corr["window_end"],
+            "anomaly_score":             corr["anomaly_score"],
+            "forced_by_rule":            forced_by_rule,
+            "causal_note":               causal_note,   # passed to LLM in step9
+            "evidence":                  evidence,
+            "categories_affected":       categories,
+            "correlated_signals":        corr["correlated_signals"],
         })
+
+    # Incidentes forçados por regra (banco inacessível) sempre primeiro
+    incidents.sort(key=lambda i: i.get("forced_by_rule") is not None, reverse=True)
 
     return incidents

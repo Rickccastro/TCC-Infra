@@ -44,12 +44,13 @@ scrape_configs:
           status: status
           request_time: request_time
           upstream_response_time: upstream_response_time
+          body_bytes_sent: body_bytes_sent
           user_agent: http_user_agent
+
+    - drop:
+        expression: '.*prometheus.*'
 
     - labels:
         method:
         status:
         uri:
-
-    - output:
-        source: message

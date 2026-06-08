@@ -10,6 +10,10 @@ from typing import List
 _METRIC_CATEGORY = {
     "cpu_avg": "infrastructure",
     "mem_avg": "infrastructure",
+    "mysql_up": "database",
+    "mysql_down": "database",
+    "mysql_qps": "database",
+    "mysql_threads_running": "database",
     "rps": "traffic",
     "error_count": "errors",
     "p50_latency": "latency",
@@ -52,6 +56,10 @@ _METRIC_ENDPOINT = {
     "desktop_count":      "/*",
     "cpu_avg":            "system",
     "mem_avg":            "system",
+    "mysql_up":                "database",
+    "mysql_down":              "database",
+    "mysql_qps":               "database",
+    "mysql_threads_running":   "database",
 }
 
 

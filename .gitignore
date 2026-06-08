@@ -3,6 +3,4 @@
 /mysql_data
 /assets
 /grafana_data
-.vscode
-/nginx/logs/*.log
-*.md
+.my.cnf
